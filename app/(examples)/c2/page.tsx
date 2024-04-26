@@ -1,19 +1,18 @@
-// src/app/page.tsx
 "use client"
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VertexNormalsHelper } from 'three/addons/helpers/VertexNormalsHelper.js';
 import { VertexTangentsHelper } from 'three/addons/helpers/VertexTangentsHelper.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import Link from 'next/link';
 
 type ThreeJSPageState = {
   scene: THREE.Scene;
   renderer: THREE.WebGLRenderer;
   camera: THREE.PerspectiveCamera;
   light: THREE.PointLight;
-  controls: OrbitControls | null;
   modelGroup: THREE.Group | null;
+  clickablePart: THREE.Object3D<THREE.Object3DEventMap> | null;
 };
 
 export default function ThreeJSPage() {
@@ -29,8 +28,8 @@ export default function ThreeJSPage() {
       renderer: new THREE.WebGLRenderer(),
       camera: new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000),
       light: new THREE.PointLight(),
-      controls: null,
       modelGroup: null,
+      clickablePart: null,
     };
 
     function init() {
@@ -114,21 +113,34 @@ export default function ThreeJSPage() {
         state.modelGroup = group;
         state.scene.add(state.modelGroup);
         state.scene.add(new THREE.BoxHelper(state.modelGroup));
+
+        // Find the 'Sphere.004' object in the scene graph
+        const clickableObject = state.modelGroup.getObjectByName('Sphere.004');
+        if (clickableObject) {
+          state.clickablePart = clickableObject;
+          state.clickablePart.addEventListener('click', handleClick);
+        }
+
+        applyJsonData(state.modelGroup, {
+          Location: {
+            X: 5.44628,
+            Y: -7.955,
+            Z: 5.886,
+          },
+          Rotation: {
+            X: 81.507,
+            Y: 14.565,
+            Z: 37.265,
+          },
+          "Euler Angles": {
+            X: 1.866,
+            Y: 1.866,
+            Z: 3.42,
+          },
+        });
       }, undefined, (error) => {
         console.error('Error loading GLTF model:', error);
       });
-
-      state.controls = new OrbitControls(state.camera, state.renderer.domElement);
-      state.controls.target.set(0, 0, 0);
-      state.controls.update();
-
-      // Prevent the user from going below the 2D x-axis (surface)
-      state.controls.minPolarAngle = Math.PI / 2;
-      state.controls.maxPolarAngle = Math.PI / 2;
-      // Note: You may want to implement a more complex solution to manage the state of the x-axis
-      // and prevent the user from going below the ground level, while still allowing them to interact
-      // with the scene above the ground. This could involve techniques like collision detection,
-      // ray casting, or defining a bounding box for the camera movement.
 
       window.addEventListener('resize', onWindowResize);
     }
@@ -143,15 +155,27 @@ export default function ThreeJSPage() {
     function animate() {
       requestAnimationFrame(animate);
 
-      if (state.controls) {
-        state.controls.update();
-      }
-
       if (state.modelGroup) {
         state.modelGroup.rotation.y += 0.01;
       }
 
       state.renderer.render(state.scene, state.camera);
+    }
+
+    function applyJsonData(modelGroup: THREE.Group | null, jsonData: any) {
+      if (!modelGroup) return;
+
+      modelGroup.position.set(
+        jsonData.Location.X,
+        jsonData.Location.Y,
+        jsonData.Location.Z
+      );
+
+      modelGroup.rotation.set(
+        THREE.MathUtils.degToRad(jsonData.Rotation.X),
+        THREE.MathUtils.degToRad(jsonData.Rotation.Y),
+        THREE.MathUtils.degToRad(jsonData.Rotation.Z)
+      );
     }
 
     init();
@@ -162,8 +186,24 @@ export default function ThreeJSPage() {
     return () => {
       window.removeEventListener('resize', onWindowResize);
       state.renderer.dispose();
+
+      if (state.clickablePart !== null) {
+        state.clickablePart.removeEventListener('click', handleClick);
+      }
     };
   }, []);
 
-  return <div id="three-js-container"></div>;
+  const handleClick = () => {
+    // No separate function needed, Link component handles navigation
+  };
+
+  return (
+    <div id="three-js-container">
+      <Link href="/new-page" onClick={handleClick}>
+        <div style={{ pointerEvents: 'none' }}>
+          {/* Render the 3D scene here */}
+        </div>
+      </Link>
+    </div>
+  );
 }

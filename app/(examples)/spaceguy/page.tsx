@@ -5,14 +5,12 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VertexNormalsHelper } from 'three/addons/helpers/VertexNormalsHelper.js';
 import { VertexTangentsHelper } from 'three/addons/helpers/VertexTangentsHelper.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 type ThreeJSPageState = {
   scene: THREE.Scene;
   renderer: THREE.WebGLRenderer;
   camera: THREE.PerspectiveCamera;
   light: THREE.PointLight;
-  controls: OrbitControls | null;
   modelGroup: THREE.Group | null;
 };
 
@@ -29,7 +27,6 @@ export default function ThreeJSPage() {
       renderer: new THREE.WebGLRenderer(),
       camera: new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000),
       light: new THREE.PointLight(),
-      controls: null,
       modelGroup: null,
     };
 
@@ -118,18 +115,6 @@ export default function ThreeJSPage() {
         console.error('Error loading GLTF model:', error);
       });
 
-      state.controls = new OrbitControls(state.camera, state.renderer.domElement);
-      state.controls.target.set(0, 0, 0);
-      state.controls.update();
-
-      // Prevent the user from going below the 2D x-axis (surface)
-      state.controls.minPolarAngle = Math.PI / 2;
-      state.controls.maxPolarAngle = Math.PI / 2;
-      // Note: You may want to implement a more complex solution to manage the state of the x-axis
-      // and prevent the user from going below the ground level, while still allowing them to interact
-      // with the scene above the ground. This could involve techniques like collision detection,
-      // ray casting, or defining a bounding box for the camera movement.
-
       window.addEventListener('resize', onWindowResize);
     }
 
@@ -143,12 +128,29 @@ export default function ThreeJSPage() {
     function animate() {
       requestAnimationFrame(animate);
 
-      if (state.controls) {
-        state.controls.update();
-      }
+      const time = -performance.now() * 0.0003;
+
+      state.camera.position.x = 400 * Math.cos(time);
+      state.camera.position.z = 400 * Math.sin(time);
+      state.camera.lookAt(state.scene.position);
+
+      state.light.position.x = Math.sin(time * 1.7) * 300;
+      state.light.position.y = Math.cos(time * 1.5) * 400;
+      state.light.position.z = Math.cos(time * 1.3) * 300;
+
+      // Possible options for camera movement:
+      // 1. Implement mouse or touch controls for camera movement
+      // 2. Add keyboard controls for camera movement
+      // 3. Use a third-party camera control library like OrbitControls
+
+      // Possible options for object movement:
+      // 1. Implement mouse or touch controls for object rotation/translation
+      // 2. Add keyboard controls for object rotation/translation
+      // 3. Implement physics-based movement (e.g., gravity, collisions)
+      // 4. Animate the object based on time or other factors
 
       if (state.modelGroup) {
-        state.modelGroup.rotation.y += 0.01;
+        state.modelGroup.rotation.y += 0.01; // Rotating the model group for demonstration purposes
       }
 
       state.renderer.render(state.scene, state.camera);
@@ -167,3 +169,6 @@ export default function ThreeJSPage() {
 
   return <div id="three-js-container"></div>;
 }
+
+
+//       loader.load('https://cdn.jsdelivr.net/gh/ebowwar/threejs-assets@main/space_boi.glb', (gltf) => {

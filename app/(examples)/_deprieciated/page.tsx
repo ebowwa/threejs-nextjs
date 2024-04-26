@@ -1,36 +1,29 @@
 // src/app/page.tsx
 "use client"
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { VertexNormalsHelper } from 'three/addons/helpers/VertexNormalsHelper.js';
 import { VertexTangentsHelper } from 'three/addons/helpers/VertexTangentsHelper.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 type ThreeJSPageState = {
   scene: THREE.Scene;
   renderer: THREE.WebGLRenderer;
   camera: THREE.PerspectiveCamera;
   light: THREE.PointLight;
-  controls: OrbitControls | null;
-  modelGroup: THREE.Group | null;
+  vnh: VertexNormalsHelper;
+  vth: VertexTangentsHelper;
 };
 
 export default function ThreeJSPage() {
-  const isInitializedRef = useRef(false);
-
   useEffect(() => {
-    if (isInitializedRef.current) {
-      return;
-    }
-
     const state: ThreeJSPageState = {
       scene: new THREE.Scene(),
       renderer: new THREE.WebGLRenderer(),
       camera: new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000),
       light: new THREE.PointLight(),
-      controls: null,
-      modelGroup: null,
+      vnh: undefined!,
+      vth: undefined!,
     };
 
     function init() {
@@ -56,30 +49,26 @@ export default function ThreeJSPage() {
       state.scene.add(polarGridHelper);
 
       const loader = new GLTFLoader();
-      loader.load('https://cdn.jsdelivr.net/gh/ebowwar/threejs-assets@main/space_boi.glb', (gltf) => {
+      loader.load('https://threejs.org/examples/models/gltf/LeePerrySmith/LeePerrySmith.glb', (gltf) => {
         const mesh = gltf.scene.children[0] as THREE.Mesh;
 
-        try {
-          mesh.geometry.computeTangents();
-        } catch (error) {
-          console.error('Error computing tangents:', error);
-        }
+        mesh.geometry.computeTangents(); // generates bad data due to degenerate UVs
 
         const group = new THREE.Group();
         group.scale.multiplyScalar(50);
-        group.position.y = -150;
         state.scene.add(group);
 
         group.updateMatrixWorld(true);
+
         group.add(mesh);
 
-        const vnh = new VertexNormalsHelper(mesh, 5);
-        vnh.position.y = -150;
-        group.add(vnh);
+        state.vnh = new VertexNormalsHelper(mesh, 5);
+        state.scene.add(state.vnh);
 
-        const vth = new VertexTangentsHelper(mesh, 5);
-        vth.position.y = -150;
-        group.add(vth);
+        state.vth = new VertexTangentsHelper(mesh, 5);
+        state.scene.add(state.vth);
+
+        state.scene.add(new THREE.BoxHelper(mesh));
 
         const wireframeMaterial = new THREE.MeshBasicMaterial({
           color: 0xffffff,
@@ -100,35 +89,20 @@ export default function ThreeJSPage() {
           wireframeMaterial
         );
         wireframe.position.x = 4;
-        wireframe.position.y = -150;
         group.add(wireframe);
+        state.scene.add(new THREE.BoxHelper(wireframe));
 
         const edges = new THREE.LineSegments(
           new THREE.EdgesGeometry(mesh.geometry),
           edgesMaterial
         );
         edges.position.x = -4;
-        edges.position.y = -150;
         group.add(edges);
+        state.scene.add(new THREE.BoxHelper(edges));
 
-        state.modelGroup = group;
-        state.scene.add(state.modelGroup);
-        state.scene.add(new THREE.BoxHelper(state.modelGroup));
-      }, undefined, (error) => {
-        console.error('Error loading GLTF model:', error);
+        state.scene.add(new THREE.BoxHelper(group));
+        state.scene.add(new THREE.BoxHelper(state.scene));
       });
-
-      state.controls = new OrbitControls(state.camera, state.renderer.domElement);
-      state.controls.target.set(0, 0, 0);
-      state.controls.update();
-
-      // Prevent the user from going below the 2D x-axis (surface)
-      state.controls.minPolarAngle = Math.PI / 2;
-      state.controls.maxPolarAngle = Math.PI / 2;
-      // Note: You may want to implement a more complex solution to manage the state of the x-axis
-      // and prevent the user from going below the ground level, while still allowing them to interact
-      // with the scene above the ground. This could involve techniques like collision detection,
-      // ray casting, or defining a bounding box for the camera movement.
 
       window.addEventListener('resize', onWindowResize);
     }
@@ -143,13 +117,18 @@ export default function ThreeJSPage() {
     function animate() {
       requestAnimationFrame(animate);
 
-      if (state.controls) {
-        state.controls.update();
-      }
+      const time = -performance.now() * 0.0003;
 
-      if (state.modelGroup) {
-        state.modelGroup.rotation.y += 0.01;
-      }
+      state.camera.position.x = 400 * Math.cos(time);
+      state.camera.position.z = 400 * Math.sin(time);
+      state.camera.lookAt(state.scene.position);
+
+      state.light.position.x = Math.sin(time * 1.7) * 300;
+      state.light.position.y = Math.cos(time * 1.5) * 400;
+      state.light.position.z = Math.cos(time * 1.3) * 300;
+
+      if (state.vnh) state.vnh.update();
+      if (state.vth) state.vth.update();
 
       state.renderer.render(state.scene, state.camera);
     }
@@ -157,9 +136,8 @@ export default function ThreeJSPage() {
     init();
     animate();
 
-    isInitializedRef.current = true;
-
     return () => {
+      // Clean up the scene and event listeners when the component is unmounted
       window.removeEventListener('resize', onWindowResize);
       state.renderer.dispose();
     };
